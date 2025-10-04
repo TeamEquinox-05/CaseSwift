@@ -212,40 +212,60 @@ def transform_to_case_structure(
     return case_structure
 
 
-# Example usage
+# ============================================================================
+# EXAMPLE/TEST CODE BELOW - NOT USED IN PRODUCTION
+# This is only for testing the transformer function manually
+# In production, the AI extracts real data from officer's conversation
+# ============================================================================
+
 if __name__ == "__main__":
     import json
     
-    # Test data
+    print("=" * 60)
+    print("TESTING case_transformer.py with EXAMPLE data")
+    print("(This is NOT real case data - just for testing)")
+    print("=" * 60)
+    
+    # Example test data - replace with any case for testing
     initial_data = {
-        "caseId": "CASE_001",
-        "caseTitle": "Sexual Assault at Bus Stop",
-        "caseDescription": "Incident reported at Margao bus stand",
+        "caseId": "TEST_CASE_001",
+        "caseTitle": "Example Sexual Assault Case",
+        "caseDescription": "Test incident for transformer",
         "victimAge": "22",
         "victimGender": "Female",
-        "victimLocation": "Margao",
+        "victimLocation": "Test Location",
         "incidentDate": "2025-10-02",
         "incidentTime": "00:00"
     }
     
+    # Example extracted data - in production, this comes from AI conversation
     extracted = {
-        "victim_name": "Aya Varsela",
-        "accused_name": "Sammy Gonsalves",
+        "victim_name": "Example Victim Name",  # ← Replace with any name
+        "accused_name": "Example Accused Name",  # ← Replace with any name
         "incident_date": "2nd October 2025",
-        "location": "margao bus stop",
+        "location": "test location",
         "incident_time": "midnight",
-        "incident_description": "Accused approached victim at midnight...",
-        "evidence_items": ["Victim's clothing", "CCTV footage"],
-        "medical_exam_status": "Completed at District Hospital",
-        "witnesses": ["Bus conductor"],
-        "procedures_completed": ["Medical examination"],
-        "procedures_pending": ["Statement recording", "Scene documentation"]
+        "incident_description": "Example incident description...",
+        "evidence_items": ["Example evidence 1", "Example evidence 2"],
+        "medical_exam_status": "Example status",
+        "witnesses": ["Example witness"],
+        "procedures_completed": ["Example procedure"],
+        "procedures_pending": ["Example pending"]
     }
     
     conversation = [
-        {"role": "ai", "content": "What is victim's name?"},
-        {"role": "user", "content": "Aya Varsela"}
+        {"role": "ai", "content": "Example question?"},
+        {"role": "user", "content": "Example answer"}
     ]
     
-    result = transform_to_case_structure("CASE_001", initial_data, extracted, conversation)
+    print("\n📥 Input (Example):")
+    print(f"Victim: {extracted['victim_name']}")
+    print(f"Accused: {extracted['accused_name']}")
+    
+    result = transform_to_case_structure("TEST_CASE_001", initial_data, extracted, conversation)
+    
+    print("\n📤 Output (Structured):")
     print(json.dumps(result, indent=2))
+    
+    print("\n✅ Transformation successful!")
+    print("Note: In production, names come from real AI conversation, not hardcoded!")

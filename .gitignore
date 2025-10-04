@@ -1,2 +1,17 @@
 #add node modules of frontend and backend
 node_modules/
+
+# Environment variables (contains sensitive data)
+.env
+backend/.env
+frontend/.env
+ChatBot/.env
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# OS files
+.DS_Store
+Thumbs.db

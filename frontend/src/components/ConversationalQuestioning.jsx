@@ -5,6 +5,7 @@ const ConversationalQuestioning = ({ caseId, sessionId, caseData, onComplete, on
   const [messages, setMessages] = useState([]);
   const [currentAnswer, setCurrentAnswer] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [processingStatus, setProcessingStatus] = useState(''); // NEW: Show what AI is doing
   const [isComplete, setIsComplete] = useState(false);
   const [extractedData, setExtractedData] = useState({});
   const [progress, setProgress] = useState({
@@ -15,6 +16,24 @@ const ConversationalQuestioning = ({ caseId, sessionId, caseData, onComplete, on
   });
   const messagesEndRef = useRef(null);
   const AI_API_URL = import.meta.env.VITE_AI_API_URL || 'http://localhost:8000';
+  const NODE_API_URL = import.meta.env.VITE_NODE_API_URL || 'http://localhost:3001';
+
+  // Save conversation to MongoDB
+  const saveConversationToMongoDB = async (updatedMessages, updatedExtractedData, updatedProgress) => {
+    try {
+      await axios.post(`${NODE_API_URL}/api/conversation/save`, {
+        caseId,
+        sessionId,
+        conversationHistory: updatedMessages,
+        extractedData: updatedExtractedData,
+        progress: updatedProgress
+      });
+      console.log('💾 Conversation saved to MongoDB');
+    } catch (error) {
+      console.error('Error saving to MongoDB:', error);
+      // Don't block the flow if save fails
+    }
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -64,6 +83,7 @@ const ConversationalQuestioning = ({ caseId, sessionId, caseData, onComplete, on
       if (response.data.complete) {
         // Conversation complete
         setIsComplete(true);
+        setProcessingStatus(''); // Clear status
         const completeMessage = {
           role: 'ai',
           content: `✅ **Case information gathering complete!**\n\nI have all the necessary information. Here's what we've covered:\n\n${response.data.summary}\n\nProceeding to generate your investigation checklist and documents...`,
@@ -81,6 +101,7 @@ const ConversationalQuestioning = ({ caseId, sessionId, caseData, onComplete, on
         }, 2000);
       } else {
         // Add AI question
+        setProcessingStatus(''); // Clear status before showing question
         const aiMessage = {
           role: 'ai',
           content: response.data.question,
@@ -130,7 +151,8 @@ const ConversationalQuestioning = ({ caseId, sessionId, caseData, onComplete, on
       const lastAiMessage = [...messages].reverse().find(m => m.role === 'ai' && !m.isComplete);
       const lastQuestion = lastAiMessage ? lastAiMessage.content : "Previous question";
 
-      // Process answer and get next question
+      // ⚡ Step 1: Analyze answer
+      setProcessingStatus('🤖 Analyzing your answer...');
       const response = await axios.post(`${AI_API_URL}/api/process-answer`, {
         case_id: caseId,
         session_id: sessionId,
@@ -141,12 +163,78 @@ const ConversationalQuestioning = ({ caseId, sessionId, caseData, onComplete, on
         extracted_data: extractedData
       });
 
-      // Update extracted data
+      // Update extracted data with SMART MERGING
       if (response.data.extracted_data) {
-        setExtractedData(prev => ({
-          ...prev,
-          ...response.data.extracted_data
-        }));
+        console.log('🔍 [DEBUG] Extracted data from backend:', response.data.extracted_data);
+        console.log('🔍 [DEBUG] Current extractedData state:', extractedData);
+        
+        // Smart merge function - appends text, merges arrays, keeps first value for names
+        const smartMerge = (oldData, newData) => {
+          const merged = { ...oldData };
+          
+          // Fields that should APPEND (accumulate information)
+          const appendFields = ['incident_description', 'location', 'accused_description', 'victim_description'];
+          
+          // Fields that should MERGE arrays
+          const arrayFields = ['evidence_items', 'witnesses', 'procedures_completed', 'procedures_pending'];
+          
+          // Fields that should keep FIRST value (don't overwrite with new mentions)
+          const keepFirstFields = ['victim_name', 'accused_name', 'victim_age', 'accused_age', 'victim_gender', 'accused_gender'];
+          
+          Object.keys(newData).forEach(key => {
+            const newValue = newData[key];
+            const oldValue = merged[key];
+            
+            // Skip null/undefined/empty values
+            if (!newValue || newValue === 'null' || newValue === '' || 
+                (Array.isArray(newValue) && newValue.length === 0)) {
+              return;
+            }
+            
+            // Append to text fields (accumulate descriptions)
+            if (appendFields.includes(key)) {
+              if (oldValue && oldValue !== 'null' && oldValue !== '') {
+                // Only append if new info is different
+                if (!oldValue.includes(newValue)) {
+                  merged[key] = `${oldValue}. ${newValue}`;
+                }
+              } else {
+                merged[key] = newValue;
+              }
+            }
+            // Merge arrays (combine evidence, witnesses, etc.)
+            else if (arrayFields.includes(key)) {
+              if (Array.isArray(newValue)) {
+                const oldArray = Array.isArray(oldValue) ? oldValue : [];
+                // Add only unique items
+                const uniqueItems = newValue.filter(item => !oldArray.includes(item));
+                merged[key] = [...oldArray, ...uniqueItems];
+              }
+            }
+            // Keep first value for identity fields (don't overwrite name with new mention)
+            else if (keepFirstFields.includes(key)) {
+              if (!oldValue || oldValue === 'null' || oldValue === '') {
+                merged[key] = newValue;
+              }
+              // else keep old value
+            }
+            // For other fields, new value overwrites
+            else {
+              merged[key] = newValue;
+            }
+          });
+          
+          return merged;
+        };
+        
+        const updatedExtractedData = smartMerge(extractedData, response.data.extracted_data);
+        
+        console.log('🔍 [DEBUG] Smart-merged extractedData:', updatedExtractedData);
+        setExtractedData(updatedExtractedData);
+        
+        // Save to MongoDB after extracting data
+        const updatedMessages = [...messages, userMessage];
+        await saveConversationToMongoDB(updatedMessages, updatedExtractedData, progress);
       }
 
       // Show quality assessment or clarification message
@@ -179,7 +267,8 @@ const ConversationalQuestioning = ({ caseId, sessionId, caseData, onComplete, on
         setMessages(prev => [...prev, alertMessage]);
       }
 
-      // Get next question
+      // ⚡ Step 2: Get next question
+      setProcessingStatus('💭 Generating next question...');      // Get next question
       await getNextQuestion({
         caseData: { ...caseData, ...extractedData }
       });
@@ -192,6 +281,7 @@ const ConversationalQuestioning = ({ caseId, sessionId, caseData, onComplete, on
       };
       setMessages(prev => [...prev, errorMessage]);
       setIsProcessing(false);
+      setProcessingStatus(''); // Clear status on error
     }
   };
 
@@ -326,6 +416,17 @@ const ConversationalQuestioning = ({ caseId, sessionId, caseData, onComplete, on
           {/* Input Area */}
           {!isComplete && (
             <div className="border-t border-gray-200 p-6 bg-gray-50">
+              {/* ⚡ Processing Status Indicator */}
+              {processingStatus && (
+                <div className="mb-4 flex items-center justify-center space-x-2 text-blue-600 bg-blue-50 py-2 px-4 rounded-lg animate-pulse">
+                  <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <span className="font-medium">{processingStatus}</span>
+                </div>
+              )}
+              
               <div className="flex space-x-4">
                 <textarea
                   value={currentAnswer}
@@ -366,12 +467,28 @@ const ConversationalQuestioning = ({ caseId, sessionId, caseData, onComplete, on
               📊 Information Gathered So Far
             </h3>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              {Object.entries(extractedData).map(([key, value]) => (
-                <div key={key} className="bg-blue-50 p-3 rounded-lg">
-                  <div className="text-xs text-gray-600 mb-1">{key.replace(/_/g, ' ').toUpperCase()}</div>
-                  <div className="text-sm font-medium text-gray-800">{String(value)}</div>
-                </div>
-              ))}
+              {Object.entries(extractedData).map(([key, value]) => {
+                // Format the value for display
+                let displayValue;
+                if (Array.isArray(value)) {
+                  displayValue = value.length > 0 ? value.join(', ') : '(not provided yet)';
+                } else if (value === null || value === 'null' || value === '') {
+                  displayValue = '(not provided yet)';
+                } else {
+                  displayValue = String(value);
+                }
+                
+                return (
+                  <div key={key} className="bg-blue-50 p-3 rounded-lg">
+                    <div className="text-xs text-gray-600 mb-1">
+                      {key.replace(/_/g, ' ').toUpperCase()}
+                    </div>
+                    <div className="text-sm font-medium text-gray-800">
+                      {displayValue}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}

@@ -26,6 +26,8 @@
     "i18next": "^25.5.2",
     "jsonwebtoken": "^9.0.2",
     "mammoth": "^1.11.0",
+    "mongodb": "^6.20.0",
+    "mongoose": "^8.19.0",
     "multer": "^2.0.2",
     "pdf-parse": "^1.1.1",
     "pdf2pic": "^3.2.0",

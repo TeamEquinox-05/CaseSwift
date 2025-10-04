@@ -2,11 +2,14 @@ import os
 import uuid
 import json
 import re
+import asyncio
 from typing import Optional, List, Dict, Any
 from datetime import datetime
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, ValidationError
 from contextlib import asynccontextmanager
 
 # LangChain imports
@@ -445,17 +448,29 @@ async def lifespan(app: FastAPI):
        - Are timelines being met?
        - Are there compliance issues?
     
-    Return JSON with structure:
+    **IMPORTANT: Extract ALL relevant information from the answer, not just predefined fields!**
+    
+    **CRITICAL: Use ONLY these exact field names in your response. Do NOT use any other field names!**
+    
+    Return JSON with structure (use ONLY these keys):
     {{
       "extracted_data": {{
-        "victim_name": "extracted name or null",
-        "accused_name": "extracted name or null",
-        "dates": ["list of dates mentioned"],
-        "evidence": ["list of evidence items"],
-        "witnesses": ["list of witness names"],
-        "locations": ["list of locations"],
-        "procedures_done": ["list of completed procedures"],
-        "procedures_pending": ["list of pending procedures"]
+        "victim_name": "extracted victim name or null",
+        "accused_name": "extracted accused name or null",
+        "victim_age": "victim age if mentioned or null",
+        "accused_age": "accused age if mentioned or null",
+        "victim_gender": "victim gender or null",
+        "accused_gender": "accused gender or null",
+        "incident_description": "detailed description of what happened or null",
+        "incident_date": "date of incident or null",
+        "incident_time": "time of incident or null",
+        "location": "location where incident happened or null",
+        "evidence_items": ["list of evidence items mentioned, empty array if none"],
+        "witnesses": ["list of witness names mentioned, empty array if none"],
+        "medical_exam_status": "medical exam status or null",
+        "accused_status": "arrested/absconding/unknown or null",
+        "procedures_completed": ["list of procedures completed, empty array if none"],
+        "procedures_pending": ["list of procedures pending, empty array if none"]
       }},
       "answer_quality": "complete|partial|vague|insufficient",
       "needs_clarification": true|false,
@@ -464,7 +479,30 @@ async def lifespan(app: FastAPI):
       "confidence_score": 0.0-1.0
     }}
     
-    Return ONLY valid JSON.
+    **DO NOT include any other fields like "dates", "evidence", "locations", "witness_names", etc.**
+    **ONLY use the exact field names shown above!**
+    
+    **Example extraction:**
+    
+    Officer says: "Victim is Priya Sharma aged 22, approached by man at bus stand. CCTV collected."
+    
+    You return:
+    {{
+      "extracted_data": {{
+        "victim_name": "Priya Sharma",
+        "victim_age": "22",
+        "incident_description": "Victim approached by man at bus stand",
+        "location": "bus stand",
+        "evidence_items": ["CCTV footage"]
+      }},
+      "answer_quality": "partial",
+      "needs_clarification": false,
+      "clarification_reason": null,
+      "compliance_alerts": [],
+      "confidence_score": 0.7
+    }}
+    
+    Return ONLY valid JSON with these exact fields.
     
     ### ANALYSIS ###
     """
@@ -493,6 +531,24 @@ async def lifespan(app: FastAPI):
     ### LEGAL REQUIREMENTS (from RAG) ###
     {legal_context}
     
+    ### ⚠️ CRITICAL: ANTI-REPETITION CHECK ###
+    **BEFORE deciding your next question, YOU MUST:**
+    1. **READ the "INFORMATION WE HAVE" section above CAREFULLY**
+    2. **CHECK if "incident_description" field has ACTUAL TEXT** (not null, not empty, not "null")
+    3. **IF incident_description contains 20+ words** → It's ALREADY ANSWERED! DON'T ask about it again!
+    4. **IF incident_description is detailed** → Move to NEXT priority (evidence, witnesses, medical exam)
+    5. **NEVER ask "Can you describe the incident?" if we already have incident_description**
+    
+    **Example of GOOD vs BAD decisions:**
+    
+    ❌ BAD (Repetitive):
+    Extracted Data: {{ "incident_description": "The accused approached and touched victim..." }}
+    Your Question: "Can you describe what exactly happened?" ← WRONG! We already have this!
+    
+    ✅ GOOD (Non-repetitive):
+    Extracted Data: {{ "incident_description": "The accused approached and touched victim..." }}
+    Your Question: "What physical evidence has been collected from the scene?" ← CORRECT! Moving to next topic!
+    
     ### INSTRUCTIONS ###
     Based on everything above, decide the SINGLE MOST IMPORTANT next question to ask.
     
@@ -503,16 +559,27 @@ async def lifespan(app: FastAPI):
     - ✅ GOOD: "Has the victim undergone medical examination? If yes, where and when?"
     
     **Decision Logic:**
-    1. Look at EXTRACTED DATA - what do we have?
-    2. Look at MISSING INFO - what's still needed?
-    3. Ask about the MOST CRITICAL missing piece SPECIFICALLY
+    1. **Review EXTRACTED DATA carefully** - what specific fields do we have vs what's missing?
+    2. **Check for actual values, not just keys** - if incident_description is null/empty, it's MISSING
+    3. **Ask about the MOST CRITICAL missing piece SPECIFICALLY**, not generic questions
+    4. **DON'T repeat questions** - if something is already answered, move to next priority
+    
+    **Critical Fields Checklist:**
+    - incident_description (WHAT happened in detail)
+    - victim_name, victim_age, victim_gender
+    - accused_name, accused_age, accused_description, accused_status
+    - incident_date, incident_time, location
+    - evidence_items (physical evidence collected)
+    - medical_exam_status (for assault/POCSO cases)
+    - witnesses (who saw it happen)
+    - procedures_completed vs procedures_pending
     
     **If we have victim/accused names but missing:**
-    - Incident details → Ask: "What exactly happened during the incident? Please describe the sequence of events."
-    - Evidence → Ask: "What evidence has been collected? (clothing, photos, CCTV, etc.)"
-    - Medical exam → Ask: "Has the victim undergone medical examination? If yes, provide details."
-    - Witnesses → Ask: "Were there any witnesses? If yes, who are they?"
-    - Accused status → Ask: "Has the accused been arrested or identified?"
+    - incident_description is null/empty → Ask: "You mentioned [accused_name] approached the victim. Can you describe exactly what happened next? What actions did the accused take?"
+    - evidence_items is empty → Ask: "What physical evidence has been collected from the scene? (clothing, weapons, CCTV, photos, etc.)"
+    - medical_exam_status is null → Ask: "Has the victim undergone medical examination? If yes, when and where?"
+    - witnesses is empty → Ask: "Were there any witnesses who saw the incident? If yes, who are they?"
+    - accused_status is null → Ask: "What is the current status of the accused - arrested, absconding, or still being identified?"
     
     **Priority Order:**
     1. URGENT: Compliance issues with immediate deadlines (medical exam, CWC notification)
@@ -533,14 +600,36 @@ async def lifespan(app: FastAPI):
     - Show legal basis for urgent questions
     - Be conversational but professional
     
-    **EXAMPLE:**
+    **EXAMPLE 1 - Initial Question:**
     If extracted_data shows:
-    - victim_name: "Aya Varsela" ✓
-    - accused_name: "Sammy Gonsalves" ✓
-    - incident_description: MISSING
+    - victim_name: "Priya Sharma" ✓
+    - accused_name: "Unknown" ✗
+    - incident_description: null ✗
     
-    Then ask: "Thank you. Now, can you describe what exactly happened during the incident? What did the accused do to the victim?"
+    Then ask: "Thank you. Can you describe what exactly happened during the incident? What actions did the accused take?"
     NOT: "Can you provide more details about the incident?"
+    
+    **EXAMPLE 2 - After Getting Partial Details:**
+    If extracted_data shows:
+    - victim_name: "Priya Sharma" ✓
+    - accused_name: "Ram Verma" ✓  
+    - accused_age: 32 ✓
+    - incident_description: "Approached victim at bus stand" ✓ (but vague)
+    - evidence_items: ["CCTV footage"] ✓
+    - medical_exam_status: null ✗
+    
+    Then ask: "You mentioned the accused approached the victim. Can you describe exactly what happened after that? What specific actions did the accused take that constitute the offense?"
+    NOT: "Can you describe what exactly happened during the assault?" (repetitive!)
+    
+    **EXAMPLE 3 - Moving to Next Priority:**
+    If extracted_data shows:
+    - incident_description: "Detailed description already provided" ✓
+    - evidence_items: ["CCTV footage", "victim's clothing"] ✓
+    - medical_exam_status: null ✗
+    - witnesses: [] ✗
+    
+    Then ask: "Has the victim undergone medical examination? This is required within 24 hours for assault cases."
+    NOT: Ask about incident details again!
     
     Return JSON:
     {{
@@ -674,6 +763,21 @@ async def lifespan(app: FastAPI):
 
 # --- FASTAPI APP INITIALIZATION ---
 app = FastAPI(lifespan=lifespan)
+
+# Add validation error handler
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    print(f"[ERROR] Validation error on {request.url.path}")
+    print(f"[ERROR] Errors: {exc.errors()}")
+    print(f"[ERROR] Body: {exc.body}")
+    return JSONResponse(
+        status_code=422,
+        content={
+            "detail": exc.errors(),
+            "body": str(exc.body)[:500]  # First 500 chars
+        }
+    )
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -1200,6 +1304,16 @@ async def get_conversational_question(request: ConversationalQuestionRequest):
         raise HTTPException(status_code=503, detail="Conversational chains not ready")
     
     try:
+        print(f"\n[DEBUG] ===== GET NEXT QUESTION =====")
+        print(f"[DEBUG] Case: {request.case_id}")
+        print(f"[DEBUG] Conversation turns so far: {len(request.conversation_history)}")
+        print(f"[DEBUG] Current extracted data fields:")
+        for key, value in request.extracted_data.items():
+            if value and value != "null" and value != []:
+                print(f"  ✓ {key}: {str(value)[:100]}")
+            else:
+                print(f"  ✗ {key}: (empty/null)")
+        
         case_type = request.case_data.get("caseType", "Unknown")
         case_description = request.case_data.get("initialDescription", "")
         
@@ -1212,13 +1326,53 @@ async def get_conversational_question(request: ConversationalQuestionRequest):
         # Format extracted data
         extracted_data_str = json.dumps(request.extracted_data, indent=2)
         
-        # 1. Check if conversation is complete
-        completion_check_result = await ml_models["completion_checker"].ainvoke({
-            "case_type": case_type,
-            "case_description": case_description,
-            "extracted_data": extracted_data_str,
-            "conversation_summary": conversation_summary
-        })
+        # Get last Q&A if available for question decider
+        last_question = ""
+        last_answer = ""
+        if len(request.conversation_history) >= 2:
+            last_question = request.conversation_history[-2].get("content", "")
+            last_answer = request.conversation_history[-1].get("content", "")
+        
+        legal_context = "Refer to relevant legal procedures."
+        
+        # 🔍 DEBUG: Check what we're sending to Question Decider
+        print(f"[DEBUG] 📤 SENDING TO QUESTION DECIDER:")
+        print(f"[DEBUG]   - extracted_data length: {len(extracted_data_str)} chars")
+        print(f"[DEBUG]   - incident_description in data: {'incident_description' in extracted_data_str}")
+        if 'incident_description' in extracted_data_str:
+            # Extract just the incident_description value from JSON string
+            import re
+            match = re.search(r'"incident_description":\s*"([^"]*(?:\\.[^"]*)*)"', extracted_data_str)
+            if match:
+                print(f"[DEBUG]   - incident_description value: {match.group(1)[:150]}...")
+        
+        print(f"[PERF] ⚡ Running completion check and question generation in PARALLEL...")
+        start_time = datetime.now()
+        
+        # ⚡ PARALLEL EXECUTION - Run both AI chains simultaneously!
+        completion_check_result, next_question_result = await asyncio.gather(
+            # 1. Check if conversation is complete
+            ml_models["completion_checker"].ainvoke({
+                "case_type": case_type,
+                "case_description": case_description,
+                "extracted_data": extracted_data_str,
+                "conversation_summary": conversation_summary
+            }),
+            # 2. Generate next question (in case not complete)
+            ml_models["question_decider"].ainvoke({
+                "case_type": case_type,
+                "case_description": case_description,
+                "extracted_data": extracted_data_str,
+                "conversation_summary": conversation_summary,
+                "last_question": last_question,
+                "last_answer": last_answer,
+                "answer_quality": "Good" if last_answer else "N/A",
+                "legal_context": legal_context
+            })
+        )
+        
+        elapsed = (datetime.now() - start_time).total_seconds()
+        print(f"[PERF] ✅ Parallel execution completed in {elapsed:.2f}s")
         
         # Parse completion check result
         try:
@@ -1268,28 +1422,7 @@ async def get_conversational_question(request: ConversationalQuestionRequest):
                 final_data=final_data
             )
         
-        # 2. If not complete, get next question
-        # Get last Q&A if available
-        last_question = ""
-        last_answer = ""
-        if len(request.conversation_history) >= 2:
-            last_question = request.conversation_history[-2].get("content", "")
-            last_answer = request.conversation_history[-1].get("content", "")
-        
-        # Get legal context from RAG (optional, can be empty for now)
-        legal_context = "Refer to relevant legal procedures."
-        
-        next_question_result = await ml_models["question_decider"].ainvoke({
-            "case_type": case_type,
-            "case_description": case_description,
-            "extracted_data": extracted_data_str,
-            "conversation_summary": conversation_summary,
-            "last_question": last_question,
-            "last_answer": last_answer,
-            "answer_quality": "Good" if last_answer else "N/A",
-            "legal_context": legal_context
-        })
-        
+        # 2. If not complete, parse next question (already generated in parallel above)
         print(f"[DEBUG] Question Decider raw output: {next_question_result[:500]}")  # Log first 500 chars
         
         # Parse next question result
@@ -1351,8 +1484,13 @@ async def process_answer(request: ProcessAnswerRequest):
         raise HTTPException(status_code=503, detail="Answer analyzer chain not ready")
     
     try:
-        print(f"[DEBUG] Process answer request: case_id={request.case_id}, session_id={request.session_id}")
+        print(f"[DEBUG] Process answer request received")
+        print(f"[DEBUG] case_id={request.case_id}, session_id={request.session_id}")
+        print(f"[DEBUG] question={request.question[:50]}..." if len(request.question) > 50 else f"[DEBUG] question={request.question}")
+        print(f"[DEBUG] answer={request.answer[:50]}..." if len(request.answer) > 50 else f"[DEBUG] answer={request.answer}")
         print(f"[DEBUG] Case data keys: {request.case_data.keys() if request.case_data else 'None'}")
+        print(f"[DEBUG] Conversation history length: {len(request.conversation_history)}")
+        print(f"[DEBUG] Extracted data keys: {request.extracted_data.keys() if request.extracted_data else 'None'}")
         
         case_type = request.case_data.get("caseType", request.case_data.get("caseTitle", "Unknown"))
         case_description = request.case_data.get("caseDescription", request.case_data.get("initialDescription", ""))
@@ -1365,6 +1503,12 @@ async def process_answer(request: ProcessAnswerRequest):
         
         # Format extracted data
         extracted_data_str = json.dumps(request.extracted_data, indent=2)
+        
+        # 🔍 DEBUG: Check if incident_description exists
+        print(f"[DEBUG] 🔍 EXTRACTED DATA RECEIVED:")
+        print(f"[DEBUG]   - incident_description: {request.extracted_data.get('incident_description', 'NOT FOUND')[:100] if request.extracted_data.get('incident_description') else 'NULL/EMPTY'}")
+        print(f"[DEBUG]   - All keys: {list(request.extracted_data.keys()) if request.extracted_data else 'None'}")
+        print(f"[DEBUG]   - Full extracted_data length: {len(extracted_data_str)} chars")
         
         # Build case context
         case_context = f"Case Type: {case_type}\nCase Description: {case_description}\nConversation History:\n{conversation_summary}\nExtracted Data So Far:\n{extracted_data_str}"
@@ -1381,6 +1525,7 @@ async def process_answer(request: ProcessAnswerRequest):
             analysis_data = extract_json_from_llm_response(analysis_result)
             if not analysis_data:
                 # Fallback
+                print("[WARNING] Could not extract JSON from answer analysis")
                 analysis_data = {
                     "extracted_data": {"raw_answer": request.answer},
                     "quality_assessment": "Unable to parse analysis",
@@ -1389,8 +1534,23 @@ async def process_answer(request: ProcessAnswerRequest):
                     "compliance_alerts": [],
                     "confidence_score": 0.5
                 }
+            else:
+                # Debug: Show what was extracted
+                extracted = analysis_data.get("extracted_data", {})
+                print(f"[DEBUG] ✅ Extracted data from answer:")
+                for key, value in extracted.items():
+                    if value and value != "null" and value != []:
+                        print(f"  - {key}: {str(value)[:100]}")
+                
+                # Show quality assessment
+                quality = analysis_data.get("answer_quality", "unknown")
+                print(f"[DEBUG] Answer quality: {quality}")
+                if analysis_data.get("needs_clarification"):
+                    print(f"[DEBUG] ⚠️ Needs clarification: {analysis_data.get('clarification_reason')}")
+                
         except Exception as e:
-            print(f"Error parsing answer analysis: {e}")
+            print(f"[ERROR] parsing answer analysis: {e}")
+            print(f"[ERROR] Raw LLM output: {analysis_result[:500]}")
             analysis_data = {
                 "extracted_data": {"raw_answer": request.answer},
                 "quality_assessment": f"Parse error: {str(e)}",
@@ -1403,9 +1563,33 @@ async def process_answer(request: ProcessAnswerRequest):
         # Merge extracted data with existing data
         new_extracted_data = analysis_data.get("extracted_data", {})
         
+        # Filter out legacy field names that might cause confusion
+        # Keep only the standardized field names
+        allowed_fields = {
+            "victim_name", "accused_name", "victim_age", "accused_age",
+            "victim_gender", "accused_gender", "incident_description",
+            "incident_date", "incident_time", "location",
+            "evidence_items", "witnesses", "medical_exam_status",
+            "accused_status", "procedures_completed", "procedures_pending"
+        }
+        
+        # Remove any fields not in allowed list (legacy fields)
+        filtered_data = {
+            k: v for k, v in new_extracted_data.items() 
+            if k in allowed_fields
+        }
+        
+        # 🔍 DEBUG: Log what we're sending back
+        print(f"[DEBUG] 📤 Returning {len(filtered_data)} fields to frontend:")
+        for key, value in filtered_data.items():
+            value_preview = str(value)[:80] if value else "NULL"
+            print(f"[DEBUG]    ✅ {key}: {value_preview}")
+        
+        print(f"[DEBUG] 📤 Returning {len(filtered_data)} fields to frontend")
+        
         return ProcessAnswerResponse(
             success=True,
-            extracted_data=new_extracted_data,
+            extracted_data=filtered_data,
             quality_assessment=analysis_data.get("quality_assessment", ""),
             needs_clarification=analysis_data.get("needs_clarification", False),
             clarification_reason=analysis_data.get("clarification_reason"),

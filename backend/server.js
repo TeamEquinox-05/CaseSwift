@@ -8,8 +8,12 @@ const mammoth = require('mammoth');
 const Tesseract = require('tesseract.js');
 require('dotenv').config();
 
-// Import authentication routes
+// Import MongoDB connection
+const connectDB = require('./config/database');
+
+// Import routes
 const authRoutes = require('./routes/auth');
+const conversationRoutes = require('./routes/conversation');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -47,6 +51,9 @@ const upload = multer({
 
 // Authentication routes
 app.use('/api/auth', authRoutes);
+
+// Conversation routes (MongoDB)
+app.use('/api/conversation', conversationRoutes);
 
 // File paths
 const responsesFilePath = path.join(__dirname, '../frontend/responses.json');
@@ -977,11 +984,15 @@ app.post('/api/case/edit', async (req, res) => {
 
 const startServer = async () => {
   try {
+    // Connect to MongoDB
+    await connectDB();
+    
     await initializeResponsesFile();
     app.listen(PORT, () => {
       console.log(`🚀 CaseSwift Backend server running on port ${PORT}`);
       console.log(`📁 Responses file: ${responsesFilePath}`);
       console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
+      console.log(`💬 Conversation API: http://localhost:${PORT}/api/conversation`);
     });
   } catch (error) {
     console.error('Failed to start server:', error);
