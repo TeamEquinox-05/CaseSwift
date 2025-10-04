@@ -118,35 +118,46 @@ const FormFillingDashboard = ({ caseId, caseData, onBack }) => {
 
   const generateFormData = (caseData) => {
     // Convert case data to form-ready format
+    // This ensures forms are populated with ACTUAL case data, not hardcoded values
     return {
-      // Basic case information
-      caseId: caseData.caseId,
-      caseTitle: caseData.caseTitle || 'Case Title',
+      // Basic case information from actual case
+      caseId: caseData.caseId || 'UNKNOWN',
+      caseTitle: caseData.caseTitle || '',
       caseDescription: caseData.caseDescription || '',
       
-      // Victim information
-      victimName: 'Victim Name', // This would come from actual case data
+      // Victim information from actual case
+      victimName: caseData.victimName || 'To be determined', // Actual victim name if available
       victimAge: caseData.victimAge || '',
       victimGender: caseData.victimGender || '',
       victimLocation: caseData.victimLocation || '',
       
-      // Incident details
+      // Incident details from actual case
       incidentDate: caseData.incidentDate || '',
       incidentTime: caseData.incidentTime || '',
-      incidentLocation: caseData.victimLocation || '',
+      incidentLocation: caseData.victimLocation || caseData.incidentLocation || '',
       
-      // Case classification and legal details
+      // Case classification and legal details from AI analysis
       caseClassification: caseData.caseClassification || '',
-      legalSections: caseData.legalReferences?.map(ref => ref.title).join(', ') || '',
+      legalSections: caseData.legalReferences?.map(ref => ref.title).join(', ') || 
+                      caseData.legalSections || '',
       
-      // Investigation details
+      // Investigation details from analysis
       investigationSteps: caseData.investigationSteps || {},
       requiredDocuments: caseData.requiredDocuments || [],
       
-      // Auto-generated content
-      reportSummary: caseData.caseAnalysisReport || '',
+      // Auto-generated content from AI
+      reportSummary: caseData.caseAnalysisReport || caseData.reportSummary || '',
       complianceScore: caseData.complianceScore || 0,
-      riskAssessment: caseData.riskAssessment || 'Medium Risk'
+      riskAssessment: caseData.riskAssessment || 'Medium Risk',
+      
+      // Additional evidence from actual case
+      evidenceFiles: caseData.evidenceFiles || [],
+      previousCaseRef: caseData.previousCaseRef || '',
+      
+      // Officer/investigation details
+      investigatingOfficer: caseData.investigatingOfficer || '',
+      policeStation: caseData.policeStation || '',
+      district: caseData.district || caseData.victimLocation?.split(',')[1]?.trim() || ''
     }
   }
 

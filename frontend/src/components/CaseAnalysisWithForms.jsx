@@ -108,21 +108,31 @@ const CaseAnalysisWithForms = ({ analysisData, originalCaseData, sessionId, case
     if (!stepsData) return []
     
     try {
+      // If stepsData is already an array of step objects, return as-is
+      if (Array.isArray(stepsData)) {
+        return stepsData.map(step => ({
+          step_id: step.step_id,
+          title: step.title || step.task,
+          description: step.description || '',
+          status: step.status || (step.completed ? 'completed' : 'pending'),
+          timeline: step.timeline || step.deadline || 'As needed',
+          category: step.category || 'PROCEDURAL',
+          priority: step.priority,
+          legal_basis: step.legal_basis
+        }))
+      }
+
+      // Legacy handling for string responses (old format)
       let content = stepsData
       
-      // Handle different data types
       if (typeof stepsData === 'object' && stepsData !== null) {
-        // If it's already an object, extract the content
         content = stepsData.response || stepsData.content || JSON.stringify(stepsData)
       } else if (typeof stepsData === 'string') {
-        // For strings, use as-is (don't attempt JSON parsing)
         content = stepsData
       } else {
-        // For other types, convert to string
         content = String(stepsData)
       }
       
-      // Ensure content is a string
       if (typeof content !== 'string') {
         content = JSON.stringify(content)
       }
@@ -135,11 +145,12 @@ const CaseAnalysisWithForms = ({ analysisData, originalCaseData, sessionId, case
         const [title, ...descParts] = cleanStep.split(':')
         
         return {
+          step_id: index + 1,
           title: title.trim(),
           description: descParts.join(':').trim() || cleanStep,
           status: index === 0 ? 'required' : 'pending',
-          forms: [],
-          timeline: 'As needed'
+          timeline: 'As needed',
+          category: 'PROCEDURAL'
         }
       })
     } catch (error) {
@@ -205,8 +216,13 @@ const CaseAnalysisWithForms = ({ analysisData, originalCaseData, sessionId, case
               <p className="text-green-600">Analysis Complete</p>
             </div>
             <div className="bg-yellow-50 p-4 rounded-lg">
-              <h3 className="font-semibold text-yellow-800">Next Steps</h3>
-              <p className="text-yellow-600">{analysisSteps.length} steps identified</p>
+              <h3 className="font-semibold text-yellow-800">Investigation Steps</h3>
+              <p className="text-yellow-600">
+                {(legalSteps.length > 0 ? legalSteps : analysisSteps).length} steps identified
+              </p>
+              <p className="text-xs text-yellow-700 mt-1">
+                {(legalSteps.length > 0 ? legalSteps : analysisSteps).filter(s => s.status === 'required').length} urgent
+              </p>
             </div>
           </div>
         </div>
@@ -214,27 +230,98 @@ const CaseAnalysisWithForms = ({ analysisData, originalCaseData, sessionId, case
         {/* Analysis Steps */}
         <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
           <h2 className="text-xl font-bold text-gray-800 mb-6">
-            {legalProcessSteps ? 'AI-Generated Legal Process Steps' : 'Legal Process Steps'}
+            {legalProcessSteps ? 'AI-Generated Investigation Checklist' : 'Investigation Steps'}
           </h2>
           <div className="space-y-4">
-            {(legalSteps.length > 0 ? legalSteps : analysisSteps).map((step, index) => (
-              <div key={index} className="border-l-4 border-blue-500 pl-4 py-2">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h3 className="font-semibold text-gray-800">{step.title}</h3>
-                    <p className="text-gray-600 text-sm">{step.description}</p>
-                    <p className="text-blue-600 text-xs mt-1">Timeline: {step.timeline}</p>
+            {(legalSteps.length > 0 ? legalSteps : analysisSteps).map((step, index) => {
+              const statusColors = {
+                required: 'border-red-500 bg-red-50',
+                pending: 'border-yellow-500 bg-yellow-50',
+                completed: 'border-green-500 bg-green-50',
+                future: 'border-gray-500 bg-gray-50'
+              }
+              
+              const statusBadgeColors = {
+                required: 'bg-red-100 text-red-800',
+                pending: 'bg-yellow-100 text-yellow-800',
+                completed: 'bg-green-100 text-green-800',
+                future: 'bg-gray-100 text-gray-800'
+              }
+              
+              const categoryIcons = {
+                MANDATORY: '⚠️',
+                EVIDENCE: '📋',
+                PROCEDURAL: '📝',
+                FINAL: '⚖️'
+              }
+
+              return (
+                <div key={index} className={`border-l-4 pl-4 py-3 rounded-r ${statusColors[step.status] || 'border-blue-500 bg-blue-50'}`}>
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        {step.category && categoryIcons[step.category] && (
+                          <span className="text-lg">{categoryIcons[step.category]}</span>
+                        )}
+                        <h3 className="font-semibold text-gray-800">
+                          {step.step_id && <span className="text-gray-500 mr-2">#{step.step_id}</span>}
+                          {step.title}
+                        </h3>
+                      </div>
+                      <p className="text-gray-700 text-sm mb-1">{step.description}</p>
+                      <div className="flex items-center gap-4 text-xs mt-2">
+                        <span className="text-blue-600 font-medium">
+                          ⏱️ {step.timeline}
+                        </span>
+                        {step.priority && (
+                          <span className={`px-2 py-1 rounded ${
+                            step.priority === 'HIGH' ? 'bg-red-100 text-red-700' :
+                            step.priority === 'MEDIUM' ? 'bg-yellow-100 text-yellow-700' :
+                            'bg-blue-100 text-blue-700'
+                          }`}>
+                            {step.priority} Priority
+                          </span>
+                        )}
+                        {step.category && (
+                          <span className="text-gray-600">
+                            {step.category}
+                          </span>
+                        )}
+                      </div>
+                      {step.legal_basis && (
+                        <p className="text-gray-500 text-xs mt-2 italic">
+                          📖 Legal Basis: {step.legal_basis}
+                        </p>
+                      )}
+                    </div>
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ml-4 ${
+                      statusBadgeColors[step.status] || 'bg-blue-100 text-blue-800'
+                    }`}>
+                      {step.status.toUpperCase()}
+                    </span>
                   </div>
-                  <span className={`px-2 py-1 rounded text-xs font-medium ${
-                    step.status === 'required' ? 'bg-red-100 text-red-800' :
-                    step.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                    'bg-gray-100 text-gray-800'
-                  }`}>
-                    {step.status}
-                  </span>
                 </div>
+              )
+            })}
+          </div>
+          
+          {/* Helpful Note */}
+          <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-start gap-3">
+              <span className="text-2xl">💡</span>
+              <div>
+                <h4 className="font-semibold text-blue-900 mb-1">Need More Guidance?</h4>
+                <p className="text-sm text-blue-800">
+                  Use the <strong>Chat Assistant</strong> (blue button in top-right) to ask specific questions about:
+                </p>
+                <ul className="text-sm text-blue-700 mt-2 ml-4 list-disc">
+                  <li>How to execute each step</li>
+                  <li>Required documents for evidence</li>
+                  <li>Legal procedures and timelines</li>
+                  <li>Case-specific compliance requirements</li>
+                </ul>
               </div>
-            ))}
+            </div>
           </div>
         </div>
         

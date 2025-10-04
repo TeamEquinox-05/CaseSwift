@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 
-const DynamicQuestionForm = ({ caseId, questions, onComplete, onBack }) => {
+const DynamicQuestionForm = ({ caseId, sessionId, questions, onComplete, onBack }) => {
   const [answers, setAnswers] = useState({});
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -83,13 +83,15 @@ const DynamicQuestionForm = ({ caseId, questions, onComplete, onBack }) => {
     setIsSubmitting(true);
     
     try {
-      const response = await axios.post('http://localhost:3001/api/submit-answers', {
+      const AI_API_URL = import.meta.env.VITE_AI_API_URL || 'http://localhost:8000';
+      const response = await axios.post(`${AI_API_URL}/api/submit-answers`, {
         caseId: caseId,
+        sessionId: sessionId || 'new-session',
         answers: answers
       });
 
       if (response.data.success) {
-        onComplete(response.data.case);
+        onComplete(response.data.enhanced_case_data);
       } else {
         console.error('Failed to submit answers:', response.data.error);
         alert('Failed to submit answers. Please try again.');

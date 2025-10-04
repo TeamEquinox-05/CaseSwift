@@ -1,0 +1,237 @@
+.case-detail-ai {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  padding: 2rem;
+}
+
+/* Header */
+.case-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: white;
+  padding: 1.5rem 2rem;
+  border-radius: 16px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  margin-bottom: 2rem;
+}
+
+.back-btn {
+  padding: 0.75rem 1.5rem;
+  background: #f3f4f6;
+  color: #374151;
+  border: none;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.back-btn:hover {
+  background: #e5e7eb;
+  transform: translateX(-5px);
+}
+
+.header-content {
+  flex: 1;
+  text-align: center;
+}
+
+.header-content h1 {
+  font-size: 1.75rem;
+  color: #1f2937;
+  margin-bottom: 0.5rem;
+}
+
+.case-classification {
+  display: inline-block;
+  padding: 0.4rem 1rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.chat-btn {
+  padding: 0.75rem 1.5rem;
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+  box-shadow: 0 4px 15px rgba(245, 87, 108, 0.3);
+}
+
+.chat-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(245, 87, 108, 0.4);
+}
+
+/* Tab Navigation */
+.tab-navigation {
+  display: flex;
+  gap: 1rem;
+  background: white;
+  padding: 1rem;
+  border-radius: 16px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  margin-bottom: 2rem;
+  overflow-x: auto;
+}
+
+.tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 1rem 1.5rem;
+  background: #f9fafb;
+  border: 2px solid transparent;
+  border-radius: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.3s;
+  white-space: nowrap;
+}
+
+.tab:hover {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.tab.active {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-color: #667eea;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+}
+
+.tab-icon {
+  font-size: 1.25rem;
+}
+
+/* Tab Content */
+.tab-content {
+  animation: fadeIn 0.5s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Loading Page */
+.loading-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+}
+
+.spinner-large {
+  border: 6px solid #f3f4f6;
+  border-top: 6px solid #3b82f6;
+  border-radius: 50%;
+  width: 80px;
+  height: 80px;
+  animation: spin 1s linear infinite;
+  margin-bottom: 2rem;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.loading-page p {
+  font-size: 1.25rem;
+  color: #6b7280;
+}
+
+/* Error Page */
+.error-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  text-align: center;
+}
+
+.error-page h2 {
+  font-size: 2rem;
+  color: #1f2937;
+  margin-bottom: 1rem;
+}
+
+.error-page p {
+  font-size: 1.1rem;
+  color: #6b7280;
+  margin-bottom: 2rem;
+}
+
+.btn-primary {
+  padding: 1rem 2rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .case-detail-ai {
+    padding: 1rem;
+  }
+
+  .case-header {
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1.25rem;
+  }
+
+  .back-btn,
+  .chat-btn {
+    width: 100%;
+  }
+
+  .header-content {
+    text-align: center;
+  }
+
+  .header-content h1 {
+    font-size: 1.5rem;
+  }
+
+  .tab-navigation {
+    flex-direction: column;
+  }
+
+  .tab {
+    width: 100%;
+  }
+}

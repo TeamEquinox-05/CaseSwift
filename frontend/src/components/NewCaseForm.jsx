@@ -3,6 +3,8 @@ import axios from 'axios'
 import CaseAnalysisWithForms from './CaseAnalysisWithForms'
 import ChatModal from './ChatModal'
 import FormFillingDashboard from './FormFillingDashboard'
+import DynamicQuestionForm from './DynamicQuestionForm'
+import ConversationalQuestioning from './ConversationalQuestioning'
 
 const NewCaseForm = ({ onBack }) => {
   const [formData, setFormData] = useState({
@@ -30,6 +32,11 @@ const NewCaseForm = ({ onBack }) => {
   const [stepsResponse, setStepsResponse] = useState(null)
   const [legalProcessSteps, setLegalProcessSteps] = useState(null)
   const [showFormDashboard, setShowFormDashboard] = useState(false)
+  const [showDynamicQuestions, setShowDynamicQuestions] = useState(false)
+  const [showConversationalQA, setShowConversationalQA] = useState(false)
+  const [dynamicQuestions, setDynamicQuestions] = useState([])
+  const [isGeneratingQuestions, setIsGeneratingQuestions] = useState(false)
+  const [useConversationalMode] = useState(true) // Toggle: true = conversational, false = form-based
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }))
@@ -85,25 +92,233 @@ const NewCaseForm = ({ onBack }) => {
     }
   }
 
-  // Function to request legal process steps from backend
+  // Function to generate investigation checklist from AI API
   const requestLegalProcessSteps = async (sessionId, caseType) => {
     try {
-      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
+      const AI_API_URL = import.meta.env.VITE_AI_API_URL || 'http://localhost:8000';
       
-      const processStepsQuestion = `What are the legal process steps, timelines, and status for ${caseType}? Please provide the steps in this format: Step Title|Description|Timeline|Status`;
-      
-      const processResponse = await axios.post(`${apiBaseUrl}/api/chat`, {
-        message: processStepsQuestion,
-        session_id: sessionId
+      // Call the checklist generator endpoint
+      const checklistResponse = await axios.post(`${AI_API_URL}/api/generate-checklist`, {
+        case_id: formData.caseId || 'NEW_CASE',
+        case_type: caseType,
+        victim_age: formData.victimAge || '',
+        incident_details: formData.caseDescription || '',
+        current_status: 'Initial Registration'
       });
       
-      if (processResponse.data && processResponse.data.response) {
-        return processResponse.data.response;
+      if (checklistResponse.data && checklistResponse.data.checklist) {
+        // Convert checklist items to a format the component expects
+        return checklistResponse.data.checklist.map((item, index) => ({
+          step_id: item.step_id || index + 1,
+          title: item.task,
+          description: `${item.legal_basis ? item.legal_basis + ' - ' : ''}Priority: ${item.priority}`,
+          timeline: item.deadline,
+          status: item.completed ? 'completed' : (item.priority === 'HIGH' ? 'required' : 'pending'),
+          category: item.category
+        }));
       }
       return null;
     } catch (error) {
       console.error('Error requesting legal process steps:', error);
-      return null;
+      // Fallback: Return default steps for the case type
+      return generateDefaultSteps(caseType);
+    }
+  }
+
+  // Generate default investigation steps based on case type
+  const generateDefaultSteps = (caseType) => {
+    const isPOCSO = caseType?.toLowerCase().includes('minor') || 
+                    caseType?.toLowerCase().includes('child') ||
+                    (formData.victimAge && parseInt(formData.victimAge) < 18);
+    
+    const baseSteps = [
+      {
+        step_id: 1,
+        title: "Register FIR Immediately",
+        description: "CrPC Section 154 - First Information Report must be registered without delay",
+        timeline: "Immediate (within 24 hours)",
+        status: "required",
+        category: "MANDATORY"
+      },
+      {
+        step_id: 2,
+        title: "Conduct Medical Examination",
+        description: isPOCSO 
+          ? "POCSO Act Section 27 - Medical examination by female doctor within 24 hours"
+          : "CrPC Section 164A - Medical examination within 72 hours",
+        timeline: isPOCSO ? "Within 24 hours" : "Within 72 hours",
+        status: "required",
+        category: "MANDATORY"
+      },
+      {
+        step_id: 3,
+        title: "Record Victim's Statement",
+        description: isPOCSO
+          ? "POCSO Act Section 24 - Statement recorded at victim's residence or place of choice, by woman police officer"
+          : "CrPC Section 161 - Record detailed statement of victim",
+        timeline: "Within 48 hours",
+        status: "pending",
+        category: "MANDATORY"
+      }
+    ];
+
+    if (isPOCSO) {
+      baseSteps.push(
+        {
+          step_id: 4,
+          title: "Age Determination",
+          description: "POCSO Act Section 34 - Obtain birth certificate, school records, or ossification test",
+          timeline: "Before charge sheet filing",
+          status: "pending",
+          category: "MANDATORY"
+        },
+        {
+          step_id: 5,
+          title: "Notify Child Welfare Committee",
+          description: "POCSO Act Section 19 - Inform CWC and arrange support services",
+          timeline: "Within 24 hours",
+          status: "pending",
+          category: "MANDATORY"
+        },
+        {
+          step_id: 6,
+          title: "Arrange NGO Support",
+          description: "POCSO Act Section 33 - Connect victim with support organization for counseling",
+          timeline: "Within 72 hours",
+          status: "pending",
+          category: "PROCEDURAL"
+        }
+      );
+    }
+
+    baseSteps.push(
+      {
+        step_id: baseSteps.length + 1,
+        title: "Collect Physical Evidence",
+        description: "Collect and seal all physical evidence, maintain chain of custody",
+        timeline: "Within 7 days",
+        status: "pending",
+        category: "EVIDENCE"
+      },
+      {
+        step_id: baseSteps.length + 2,
+        title: "Interview Witnesses",
+        description: "Record statements from all witnesses under CrPC Section 161",
+        timeline: "Within 14 days",
+        status: "pending",
+        category: "EVIDENCE"
+      },
+      {
+        step_id: baseSteps.length + 3,
+        title: "File Charge Sheet",
+        description: isPOCSO
+          ? "POCSO Act Section 173 - File charge sheet within 90 days in Special Court"
+          : "CrPC Section 173 - File charge sheet within 60-90 days",
+        timeline: isPOCSO ? "Within 90 days" : "Within 60-90 days",
+        status: "future",
+        category: "FINAL"
+      }
+    );
+
+    return baseSteps;
+  }
+
+  // NEW: Generate dynamic AI questions based on case details
+  const generateDynamicQuestions = async (caseData, newSessionId) => {
+    setIsGeneratingQuestions(true);
+    try {
+      // Check if conversational mode is enabled
+      if (useConversationalMode) {
+        // Use conversational questioning
+        setShowConversationalQA(true);
+        setIsSubmitting(false);
+        return true;
+      }
+      
+      // Otherwise use form-based questioning (original approach)
+      const AI_API_URL = import.meta.env.VITE_AI_API_URL || 'http://localhost:8000';
+      
+      const response = await axios.post(`${AI_API_URL}/api/generate-questions`, {
+        case_id: caseData.caseId,
+        case_type: caseData.caseTitle,
+        case_description: caseData.caseDescription,
+        victim_age: caseData.victimAge,
+        incident_date: caseData.incidentDate,
+        location: caseData.victimLocation
+      });
+
+      if (response.data && response.data.questions) {
+        console.log('Generated questions:', response.data.questions);
+        setDynamicQuestions(response.data.questions);
+        setShowDynamicQuestions(true);
+        setIsSubmitting(false);
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Error generating questions:', error);
+      // If question generation fails, skip to analysis
+      alert('Could not generate dynamic questions. Proceeding with case analysis...');
+      return false;
+    } finally {
+      setIsGeneratingQuestions(false);
+    }
+  }
+
+  // Handle completion of conversational Q&A
+  const handleConversationalComplete = async (extractedData) => {
+    console.log('Conversational Q&A completed:', extractedData);
+    
+    // Merge extracted data with form data
+    const completeFormData = {
+      ...formData,
+      ai_extracted_data: extractedData
+    };
+    
+    // Hide conversational Q&A
+    setShowConversationalQA(false);
+    
+    // Proceed with case analysis
+    await proceedWithCaseAnalysis(completeFormData);
+  }
+
+  // Handle completion of dynamic questions
+  const handleDynamicQuestionsComplete = async (enhancedData) => {
+    console.log('Dynamic questions completed:', enhancedData);
+    
+    // Merge enhanced data with form data
+    const completeFormData = {
+      ...formData,
+      ...enhancedData.structured_answers
+    };
+    
+    // Hide questions form
+    setShowDynamicQuestions(false);
+    
+    // Continue with case analysis using enhanced data
+    await proceedWithCaseAnalysis(completeFormData);
+  }
+
+  // Separate function for case analysis after questions
+  const proceedWithCaseAnalysis = async (caseData) => {
+    setIsSubmitting(true);
+    
+    try {
+      // Request legal process steps from backend
+      const legalSteps = await requestLegalProcessSteps(sessionId, caseData.caseTitle);
+      if (legalSteps) {
+        setLegalProcessSteps(legalSteps);
+      }
+      
+      // Show the analysis report
+      setCurrentCaseId(caseData.caseId);
+      setShowAnalysisReport(true);
+    } catch (error) {
+      console.error('Error in case analysis:', error);
+      alert('Failed to complete case analysis. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+      setIsRedirecting(false);
     }
   }
 
@@ -228,21 +443,28 @@ const NewCaseForm = ({ onBack }) => {
         localStorage.setItem('caseSwift_sessionId', sessionId);
         localStorage.setItem('caseSwift_analysisData', JSON.stringify(mockAnalysisData));
         
-        // Automatically request investigation steps
-        await requestInvestigationSteps(sessionId, formData.caseTitle);
+        // NEW: Generate dynamic questions based on case details
+        const questionsGenerated = await generateDynamicQuestions(formData, sessionId);
         
-        // Request legal process steps from backend
-        const legalSteps = await requestLegalProcessSteps(sessionId, formData.caseTitle);
-        if (legalSteps) {
-          setLegalProcessSteps(legalSteps);
+        if (!questionsGenerated) {
+          // If questions generation fails, proceed with normal flow
+          // Automatically request investigation steps
+          await requestInvestigationSteps(sessionId, formData.caseTitle);
+          
+          // Request legal process steps from backend
+          const legalSteps = await requestLegalProcessSteps(sessionId, formData.caseTitle);
+          if (legalSteps) {
+            setLegalProcessSteps(legalSteps);
+          }
+          
+          // Show success message and display analysis report
+          setIsRedirecting(true);
+          setTimeout(() => {
+            setIsRedirecting(false);
+            setShowAnalysisReport(true);
+          }, 1500);
         }
-        
-        // Show success message and display analysis report
-        setIsRedirecting(true);
-        setTimeout(() => {
-          setIsRedirecting(false);
-          setShowAnalysisReport(true);
-        }, 1500);
+        // If questions generated, flow continues in handleDynamicQuestionsComplete
       } else {
         throw new Error('Invalid response format from server');
       }
@@ -250,7 +472,10 @@ const NewCaseForm = ({ onBack }) => {
       console.error('Error submitting case:', error);
       alert('Error submitting case. Please check your connection and try again.');
     } finally {
-      setIsSubmitting(false);
+      // Don't set isSubmitting false if showing questions
+      if (!showDynamicQuestions) {
+        setIsSubmitting(false);
+      }
     }
   }
 
@@ -297,6 +522,38 @@ const NewCaseForm = ({ onBack }) => {
     );
   }
   
+  // If showing conversational Q&A, render ConversationalQuestioning
+  if (showConversationalQA) {
+    return (
+      <ConversationalQuestioning
+        caseId={currentCaseId || formData.caseId}
+        sessionId={sessionId}
+        caseData={formData}
+        onComplete={handleConversationalComplete}
+        onBack={() => {
+          setShowConversationalQA(false);
+          setIsSubmitting(false);
+        }}
+      />
+    );
+  }
+  
+  // If showing dynamic questions, render DynamicQuestionForm (legacy form-based mode)
+  if (showDynamicQuestions && dynamicQuestions.length > 0) {
+    return (
+      <DynamicQuestionForm
+        caseId={currentCaseId || formData.caseId}
+        sessionId={sessionId}
+        questions={dynamicQuestions}
+        onComplete={handleDynamicQuestionsComplete}
+        onBack={() => {
+          setShowDynamicQuestions(false);
+          setIsSubmitting(false);
+        }}
+      />
+    );
+  }
+
   // If showing analysis report, render that component
   if (showAnalysisReport && analysisData) {
     return (

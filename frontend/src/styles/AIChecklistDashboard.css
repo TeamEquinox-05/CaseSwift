@@ -1,0 +1,380 @@
+.ai-checklist-dashboard {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+}
+
+.dashboard-header {
+  margin-bottom: 2rem;
+  text-align: center;
+}
+
+.dashboard-header h1 {
+  font-size: 2.5rem;
+  color: #1f2937;
+  margin-bottom: 0.5rem;
+}
+
+.case-id {
+  color: #6b7280;
+  font-size: 1rem;
+}
+
+/* Loading States */
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  text-align: center;
+}
+
+.spinner {
+  border: 4px solid #f3f4f6;
+  border-top: 4px solid #3b82f6;
+  border-radius: 50%;
+  width: 60px;
+  height: 60px;
+  animation: spin 1s linear infinite;
+  margin-bottom: 1.5rem;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.loading-text {
+  font-size: 1.25rem;
+  color: #1f2937;
+  margin-bottom: 0.5rem;
+}
+
+.loading-subtext {
+  color: #6b7280;
+  font-size: 0.95rem;
+}
+
+/* Error States */
+.error-container {
+  text-align: center;
+  padding: 3rem;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  margin: 2rem 0;
+}
+
+.error-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.error-container h3 {
+  color: #991b1b;
+  margin-bottom: 0.5rem;
+}
+
+.error-container p {
+  color: #dc2626;
+  margin-bottom: 1.5rem;
+}
+
+.retry-btn {
+  padding: 0.75rem 1.5rem;
+  background: #dc2626;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.retry-btn:hover {
+  background: #b91c1c;
+}
+
+/* Progress Card */
+.progress-card {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 2rem;
+  border-radius: 16px;
+  margin-bottom: 2rem;
+  box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+}
+
+.progress-card h2 {
+  font-size: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.progress-stats {
+  display: flex;
+  gap: 3rem;
+  margin-bottom: 1.5rem;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+}
+
+.stat-value {
+  font-size: 2.5rem;
+  font-weight: bold;
+}
+
+.stat-label {
+  font-size: 0.9rem;
+  opacity: 0.9;
+}
+
+.progress-bar-container {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  height: 20px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: #10b981;
+  border-radius: 10px;
+  transition: width 0.5s ease;
+}
+
+/* Next Action Card */
+.next-action-card {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  color: white;
+  padding: 2rem;
+  border-radius: 16px;
+  margin-bottom: 2rem;
+  box-shadow: 0 10px 25px rgba(245, 87, 108, 0.3);
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.card-header h3 {
+  font-size: 1.5rem;
+  margin: 0;
+}
+
+.ai-badge {
+  background: rgba(255, 255, 255, 0.3);
+  padding: 0.4rem 1rem;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.recommendation-content {
+  font-size: 1.05rem;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+.recommendation-content p {
+  margin: 0.75rem 0;
+}
+
+/* Checklist Section */
+.checklist-section {
+  background: white;
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.3rem;
+  color: #1f2937;
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.section-title .icon {
+  font-size: 1.5rem;
+}
+
+.no-items {
+  color: #6b7280;
+  font-style: italic;
+  text-align: center;
+  padding: 2rem;
+}
+
+/* Checklist Items */
+.checklist-item {
+  display: flex;
+  gap: 1rem;
+  padding: 1.25rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 10px;
+  margin-bottom: 1rem;
+  transition: all 0.3s;
+  background: white;
+}
+
+.checklist-item:hover {
+  border-color: #3b82f6;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+}
+
+.checklist-item.completed {
+  background: #f0fdf4;
+  border-color: #86efac;
+  opacity: 0.8;
+}
+
+.checklist-item.high-priority {
+  border-color: #fca5a5;
+  background: #fff5f5;
+}
+
+.checklist-item.optional {
+  border-style: dashed;
+}
+
+.checkbox {
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+  flex-shrink: 0;
+  margin-top: 0.25rem;
+}
+
+.item-details {
+  flex: 1;
+}
+
+.item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.item-task {
+  font-size: 1.1rem;
+  color: #1f2937;
+  margin: 0;
+}
+
+.priority-badge {
+  padding: 0.3rem 0.8rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.priority-badge.high {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.legal-basis {
+  color: #4b5563;
+  font-size: 0.95rem;
+  margin: 0.5rem 0;
+}
+
+.item-meta {
+  display: flex;
+  gap: 1.5rem;
+  margin-top: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.deadline {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.dependencies {
+  color: #2563eb;
+}
+
+/* Action Buttons */
+.action-buttons {
+  display: flex;
+  justify-content: center;
+  margin-top: 2rem;
+}
+
+.regenerate-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem 2rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 1.05rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.3s;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
+.regenerate-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+}
+
+.regenerate-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.spinner-small {
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top: 2px solid white;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  animation: spin 0.8s linear infinite;
+  display: inline-block;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .ai-checklist-dashboard {
+    padding: 1rem;
+  }
+
+  .dashboard-header h1 {
+    font-size: 1.8rem;
+  }
+
+  .progress-stats {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .item-meta {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+}
