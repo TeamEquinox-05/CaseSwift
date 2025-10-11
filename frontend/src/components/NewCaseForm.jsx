@@ -338,14 +338,39 @@ const NewCaseForm = ({ onBack }) => {
       // Use the environment variable for the API base URL
       const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
       
-      // Send the case data to the server endpoint in the expected format
+      // Generate session ID
+      const newSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      // 1. First create the case in database
+      const dbResponse = await axios.post(`${apiBaseUrl}/api/conversation/create-with-case`, {
+        caseId: formData.caseId,
+        sessionId: newSessionId,
+        initialData: {
+          caseTitle: formData.caseTitle,
+          caseType: formData.caseType || 'Other',
+          caseDescription: formData.caseDescription,
+          victimAge: formData.victimAge,
+          victimGender: formData.victimGender,
+          victimLocation: formData.victimLocation,
+          incidentDate: formData.incidentDate,
+          location: formData.victimLocation,
+          initialDescription: formData.caseDescription
+        },
+        officerName: formData.officerName || 'Unknown Officer',
+        department: formData.policeStation || 'Unknown Station',
+        userId: null // TODO: Add actual user ID from auth
+      });
+      
+      console.log('✅ Case created in database:', dbResponse.data);
+      
+      // 2. Then start AI conversation with ChatBot
       const response = await axios.post(`${apiBaseUrl}/api/chat`, { 
         message: JSON.stringify(formData)
       });
       
       if (response.data && response.data.session_id) {
         // The server returns a "response" field with text and a "session_id"
-        const sessionId = response.data.session_id;
+        const sessionId = response.data.session_id || newSessionId;
         const analysisResponse = response.data.response;
         
         setSessionId(sessionId);
