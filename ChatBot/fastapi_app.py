@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 from session_rag import ChatRAG
 from langchain_ollama import OllamaEmbeddings
 from langchain_community.llms import Ollama
+from conversational_case_builder import case_builder
 
 # Path to the rag-tutorial-v2 chroma database
 rag_tutorial_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "rag-tutorial-v2")

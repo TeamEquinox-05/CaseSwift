@@ -1,12 +1,12 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import axios from 'axios'
 import CaseAnalysisWithForms from './CaseAnalysisWithForms'
 import ChatModal from './ChatModal'
 import FormFillingDashboard from './FormFillingDashboard'
 import DynamicQuestionForm from './DynamicQuestionForm'
-import ConversationalQuestioning from './ConversationalQuestioning'
+import ConversationSidebar from './ConversationSidebar'
 
-const NewCaseForm = ({ onBack }) => {
+const NewCaseForm = ({ onBack, resumeConversation, onClearResume }) => {
   const [formData, setFormData] = useState({
     caseId: '',
     caseTitle: '',
@@ -37,6 +37,113 @@ const NewCaseForm = ({ onBack }) => {
   const [dynamicQuestions, setDynamicQuestions] = useState([])
   const [isGeneratingQuestions, setIsGeneratingQuestions] = useState(false)
   const [useConversationalMode] = useState(true) // Toggle: true = conversational, false = form-based
+  const [activeConversation, setActiveConversation] = useState(null) // { caseId, sessionId, caseData }
+
+  // Test data templates
+  const testCaseTemplates = [
+    {
+      name: "Rape Case (Adult)",
+      data: {
+        caseId: `RAPE-${Date.now()}`,
+        caseTitle: "Sexual Assault Case - Mumbai",
+        caseDescription: "Victim reported sexual assault by known person in residential area. Medical examination pending. Witness statements collected.",
+        victimAge: "28",
+        victimGender: "Female",
+        victimLocation: "Andheri West, Mumbai, Maharashtra",
+        incidentDate: "2025-10-09",
+        incidentTime: "22:30",
+        evidenceFiles: [],
+        previousCaseRef: ""
+      }
+    },
+    {
+      name: "POCSO Case (Minor)",
+      data: {
+        caseId: `POCSO-${Date.now()}`,
+        caseTitle: "Child Sexual Abuse - POCSO Case",
+        caseDescription: "Minor victim (age 15) reported sexual harassment by teacher. Immediate action required under POCSO Act. Parents informed.",
+        victimAge: "15",
+        victimGender: "Female",
+        victimLocation: "Bangalore, Karnataka",
+        incidentDate: "2025-10-08",
+        incidentTime: "15:00",
+        evidenceFiles: [],
+        previousCaseRef: ""
+      }
+    },
+    {
+      name: "Murder Case",
+      data: {
+        caseId: `MURDER-${Date.now()}`,
+        caseTitle: "Homicide Investigation - Delhi",
+        caseDescription: "Body found in abandoned warehouse. Multiple stab wounds. Investigation ongoing. Forensic team dispatched.",
+        victimAge: "42",
+        victimGender: "Male",
+        victimLocation: "Rohini, Delhi",
+        incidentDate: "2025-10-10",
+        incidentTime: "03:00",
+        evidenceFiles: [],
+        previousCaseRef: ""
+      }
+    },
+    {
+      name: "Domestic Violence",
+      data: {
+        caseId: `DV-${Date.now()}`,
+        caseTitle: "Domestic Violence Case - Protection Order Required",
+        caseDescription: "Victim suffered physical abuse by spouse. Multiple previous complaints on record. Immediate protection order requested.",
+        victimAge: "32",
+        victimGender: "Female",
+        victimLocation: "Pune, Maharashtra",
+        incidentDate: "2025-10-11",
+        incidentTime: "20:00",
+        evidenceFiles: [],
+        previousCaseRef: ""
+      }
+    },
+    {
+      name: "Assault Case",
+      data: {
+        caseId: `ASSAULT-${Date.now()}`,
+        caseTitle: "Physical Assault - Public Place",
+        caseDescription: "Victim assaulted outside bar after altercation. Multiple witnesses present. Medical treatment administered. CCTV footage available.",
+        victimAge: "35",
+        victimGender: "Male",
+        victimLocation: "Goa, Panjim",
+        incidentDate: "2025-10-10",
+        incidentTime: "23:45",
+        evidenceFiles: [],
+        previousCaseRef: ""
+      }
+    }
+  ];
+
+  // Fill form with test data
+  const fillTestData = (template) => {
+    setFormData(template.data);
+    console.log(`📝 Filled form with test data: ${template.name}`);
+  };
+
+  // Handle resume conversation on component mount
+  useEffect(() => {
+    if (resumeConversation) {
+      console.log('📞 Resuming conversation:', resumeConversation);
+      setCurrentCaseId(resumeConversation.caseId);
+      setSessionId(resumeConversation.sessionId);
+      
+      // Set active conversation for sidebar
+      setActiveConversation({
+        caseId: resumeConversation.caseId,
+        sessionId: resumeConversation.sessionId,
+        caseData: resumeConversation.caseData || formData
+      });
+      
+      // Clear resume data after handling
+      if (onClearResume) {
+        onClearResume();
+      }
+    }
+  }, [resumeConversation]);
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }))
@@ -229,8 +336,17 @@ const NewCaseForm = ({ onBack }) => {
     try {
       // Check if conversational mode is enabled
       if (useConversationalMode) {
-        // Use conversational questioning
-        setShowConversationalQA(true);
+        console.log('💬 Starting conversational mode with:', { caseId: caseData.caseId, sessionId: newSessionId });
+        
+        // Set active conversation for sidebar - this will auto-open the sidebar
+        setActiveConversation({
+          caseId: caseData.caseId,
+          sessionId: newSessionId,
+          caseData: caseData
+        });
+        
+        console.log('✅ Active conversation set, sidebar should open now');
+        
         setIsSubmitting(false);
         return true;
       }
@@ -335,14 +451,16 @@ const NewCaseForm = ({ onBack }) => {
     setIsSubmitting(true);
     
     try {
-      // Use the environment variable for the API base URL
-      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
+      // Use NODE_API_URL for database operations (backend on port 3001)
+      const nodeApiUrl = import.meta.env.VITE_NODE_API_URL || 'http://localhost:3001';
+      // Use API_BASE_URL for ChatBot operations (ChatBot on port 8000)
+      const chatApiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
       
       // Generate session ID
       const newSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
-      // 1. First create the case in database
-      const dbResponse = await axios.post(`${apiBaseUrl}/api/conversation/create-with-case`, {
+      // 1. First create the case in database (Node.js backend)
+      const dbResponse = await axios.post(`${nodeApiUrl}/api/conversation/create-with-case`, {
         caseId: formData.caseId,
         sessionId: newSessionId,
         initialData: {
@@ -364,7 +482,7 @@ const NewCaseForm = ({ onBack }) => {
       console.log('✅ Case created in database:', dbResponse.data);
       
       // 2. Then start AI conversation with ChatBot
-      const response = await axios.post(`${apiBaseUrl}/api/chat`, { 
+      const response = await axios.post(`${chatApiUrl}/api/chat`, { 
         message: JSON.stringify(formData)
       });
       
@@ -543,22 +661,6 @@ const NewCaseForm = ({ onBack }) => {
         caseId={currentCaseId}
         caseData={analysisData}
         onBack={() => setShowFormDashboard(false)}
-      />
-    );
-  }
-  
-  // If showing conversational Q&A, render ConversationalQuestioning
-  if (showConversationalQA) {
-    return (
-      <ConversationalQuestioning
-        caseId={currentCaseId || formData.caseId}
-        sessionId={sessionId}
-        caseData={formData}
-        onComplete={handleConversationalComplete}
-        onBack={() => {
-          setShowConversationalQA(false);
-          setIsSubmitting(false);
-        }}
       />
     );
   }
@@ -883,6 +985,43 @@ const NewCaseForm = ({ onBack }) => {
 
         {/* Form */}
         <div className="bg-white p-6 lg:p-8 rounded-xl shadow-lg">
+          {/* Test Data Section - Only show on first section */}
+          {currentSection === 0 && (
+            <div className="mb-8 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border-2 border-blue-200">
+              <div className="flex items-center mb-3">
+                <svg className="w-5 h-5 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                <h3 className="text-sm font-semibold text-gray-800">Quick Test - Use Sample Case Data</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                {testCaseTemplates.map((template, index) => (
+                  <button
+                    key={index}
+                    onClick={() => fillTestData(template)}
+                    className="text-left p-3 bg-white hover:bg-blue-100 rounded-lg border border-blue-200 hover:border-blue-400 transition-all group"
+                  >
+                    <div className="text-sm font-medium text-gray-800 group-hover:text-blue-700">
+                      {template.name}
+                    </div>
+                    <div className="text-xs text-gray-600 mt-1">
+                      {template.data.caseDescription.substring(0, 60)}...
+                    </div>
+                    <div className="text-xs text-blue-600 mt-1 font-medium">
+                      Click to fill →
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-gray-600 mt-3 flex items-center">
+                <svg className="w-4 h-4 mr-1 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Click any button above to instantly fill the form with realistic test data. Perfect for demos and testing!
+              </p>
+            </div>
+          )}
+
           {/* Current Section Title */}
           <h2 className="text-xl lg:text-2xl font-bold text-gray-800 mb-6">
             {sections[currentSection].title}
@@ -945,6 +1084,28 @@ const NewCaseForm = ({ onBack }) => {
           </div>
         </div>
       </div>
+      
+      {/* Conversation Sidebar - renders when activeConversation is set */}
+      <ConversationSidebar
+        activeConversation={activeConversation}
+        onCloseConversation={() => {
+          setActiveConversation(null);
+          console.log('✅ Conversation closed');
+          // Optionally navigate back to dashboard
+          if (onBack) {
+            onBack();
+          }
+        }}
+        onResumeConversation={(conv) => {
+          setCurrentCaseId(conv.caseId);
+          setSessionId(conv.sessionId);
+          setActiveConversation({
+            caseId: conv.caseId,
+            sessionId: conv.sessionId,
+            caseData: conv.caseData || formData
+          });
+        }}
+      />
     </div>
   )
 }

@@ -247,6 +247,114 @@ router.post('/save', async (req, res) => {
   }
 });
 
+// Pause conversation (when user skips)
+router.post('/pause', async (req, res) => {
+  try {
+    const { caseId, sessionId } = req.body;
+    
+    console.log(`⏸️ Pausing conversation: ${sessionId}`);
+    
+    // Update Conversation state to 'paused'
+    const conversation = await Conversation.findOne({ sessionId });
+    if (conversation) {
+      conversation.conversationState = 'paused';
+      conversation.lastActiveAt = new Date();
+      await conversation.save();
+      console.log(`✅ Conversation ${sessionId} paused in conversations collection`);
+    }
+    
+    // Update ConversationalCase
+    const conversationalCase = await ConversationalCase.findOne({ sessionId });
+    if (conversationalCase) {
+      conversationalCase.isComplete = false; // Mark as incomplete
+      conversationalCase.updatedAt = new Date();
+      await conversationalCase.save();
+      console.log(`✅ ConversationalCase ${sessionId} marked as paused`);
+    }
+    
+    res.json({
+      success: true,
+      message: 'Conversation paused successfully',
+      sessionId,
+      caseId
+    });
+  } catch (error) {
+    console.error('❌ Error pausing conversation:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to pause conversation',
+      error: error.message
+    });
+  }
+});
+
+// Resume conversation (when user clicks from sidebar)
+router.post('/resume', async (req, res) => {
+  try {
+    const { sessionId } = req.body;
+    
+    console.log(`▶️ Resuming conversation: ${sessionId}`);
+    
+    // Update Conversation state to 'active'
+    const conversation = await Conversation.findOne({ sessionId });
+    if (conversation) {
+      conversation.conversationState = 'active';
+      conversation.lastActiveAt = new Date();
+      await conversation.save();
+      console.log(`✅ Conversation ${sessionId} resumed`);
+    }
+    
+    res.json({
+      success: true,
+      message: 'Conversation resumed successfully',
+      sessionId
+    });
+  } catch (error) {
+    console.error('❌ Error resuming conversation:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to resume conversation',
+      error: error.message
+    });
+  }
+});
+
+// Get paused/active conversations for sidebar
+router.get('/paused-conversations', async (req, res) => {
+  try {
+    // Get all paused or active conversations from Conversation collection
+    const pausedConversations = await Conversation.find({
+      conversationState: { $in: ['paused', 'active'] }
+    })
+    .populate('caseRef', 'caseTitle caseType victim')
+    .sort({ lastActiveAt: -1 })
+    .limit(10);
+    
+    res.json({
+      success: true,
+      count: pausedConversations.length,
+      conversations: pausedConversations.map(conv => ({
+        sessionId: conv.sessionId,
+        caseId: conv.caseId,
+        caseTitle: conv.caseRef?.caseTitle || conv.initialData?.caseTitle || 'Untitled Case',
+        caseType: conv.caseRef?.caseType || conv.initialData?.caseType || 'Unknown',
+        progress: conv.progress,
+        overallProgress: conv.overallProgress,
+        messageCount: conv.messages.length,
+        lastActiveAt: conv.lastActiveAt,
+        conversationState: conv.conversationState
+      }))
+    });
+  } catch (error) {
+    console.error('❌ Error fetching paused conversations:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch paused conversations',
+      error: error.message
+    });
+  }
+});
+
 // Get conversation by session ID
 router.get('/:sessionId', async (req, res) => {
   try {

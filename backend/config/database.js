@@ -13,11 +13,16 @@ const connectDB = async () => {
     await mongoose.connect(MONGODB_URI, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
+      serverSelectionTimeoutMS: 30000, // Increase timeout to 30 seconds
+      socketTimeoutMS: 45000, // Socket timeout 45 seconds
+      maxPoolSize: 10, // Connection pool size
+      minPoolSize: 2
     });
     console.log('✅ MongoDB Atlas connected successfully');
     console.log(`📊 Database: ${mongoose.connection.name}`);
   } catch (error) {
     console.error('❌ MongoDB connection error:', error.message);
+    console.error('❌ Full error:', error);
     // Don't exit process, allow server to run without DB
     console.warn('⚠️  Server will continue without database persistence');
   }

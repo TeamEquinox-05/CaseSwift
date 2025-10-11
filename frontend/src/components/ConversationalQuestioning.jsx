@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 
-const ConversationalQuestioning = ({ caseId, sessionId, caseData, onComplete, onBack }) => {
+const ConversationalQuestioning = ({ caseId, sessionId, caseData, onComplete, onBack, onSkip }) => {
   const [messages, setMessages] = useState([]);
   const [currentAnswer, setCurrentAnswer] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -14,6 +14,7 @@ const ConversationalQuestioning = ({ caseId, sessionId, caseData, onComplete, on
     compliance: 0,
     witnesses: 0
   });
+  const [showSkipConfirm, setShowSkipConfirm] = useState(false);
   const messagesEndRef = useRef(null);
   const AI_API_URL = import.meta.env.VITE_AI_API_URL || 'http://localhost:8000';
   const NODE_API_URL = import.meta.env.VITE_NODE_API_URL || 'http://localhost:3001';
@@ -32,6 +33,37 @@ const ConversationalQuestioning = ({ caseId, sessionId, caseData, onComplete, on
     } catch (error) {
       console.error('Error saving to MongoDB:', error);
       // Don't block the flow if save fails
+    }
+  };
+
+  // Handle skip conversation
+  const handleSkipConversation = async () => {
+    try {
+      // Pause the conversation in database
+      await axios.post(`${NODE_API_URL}/api/conversation/pause`, {
+        caseId,
+        sessionId
+      });
+      
+      // Save current state before leaving
+      await saveConversationToMongoDB(messages, extractedData, progress);
+      
+      console.log('⏸️ Conversation paused and saved');
+      
+      // Navigate to dashboard or call onSkip callback
+      if (onSkip) {
+        onSkip();
+      } else if (onBack) {
+        onBack();
+      }
+    } catch (error) {
+      console.error('Error pausing conversation:', error);
+      // Still allow skip even if save fails
+      if (onSkip) {
+        onSkip();
+      } else if (onBack) {
+        onBack();
+      }
     }
   };
 
@@ -316,12 +348,24 @@ const ConversationalQuestioning = ({ caseId, sessionId, caseData, onComplete, on
                 Case ID: {caseId} | Session: {sessionId?.substring(0, 8)}...
               </p>
             </div>
-            <button
-              onClick={onBack}
-              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-            >
-              ← Back
-            </button>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => setShowSkipConfirm(true)}
+                className="px-4 py-2 bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 transition-colors flex items-center space-x-2"
+                disabled={isProcessing}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+                <span>Skip for Now</span>
+              </button>
+              <button
+                onClick={onBack}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                ← Back
+              </button>
+            </div>
           </div>
 
           {/* Progress Indicators */}
@@ -495,6 +539,55 @@ const ConversationalQuestioning = ({ caseId, sessionId, caseData, onComplete, on
                   </div>
                 );
               })}
+            </div>
+          </div>
+        )}
+
+        {/* Skip Confirmation Modal */}
+        {showSkipConfirm && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+              <div className="flex items-start space-x-4">
+                <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-bold text-gray-900 mb-2">
+                    Skip Questionnaire?
+                  </h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    You can resume this conversation anytime from the sidebar. Your progress will be saved automatically.
+                  </p>
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                    <p className="text-xs text-blue-800">
+                      <strong>Current Progress:</strong><br/>
+                      • Case Info: {progress.caseInfo}%<br/>
+                      • Evidence: {progress.evidence}%<br/>
+                      • Compliance: {progress.compliance}%<br/>
+                      • Witnesses: {progress.witnesses}%
+                    </p>
+                  </div>
+                  <div className="flex space-x-3">
+                    <button
+                      onClick={() => {
+                        setShowSkipConfirm(false);
+                        handleSkipConversation();
+                      }}
+                      className="flex-1 px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors font-medium"
+                    >
+                      Yes, Skip for Now
+                    </button>
+                    <button
+                      onClick={() => setShowSkipConfirm(false)}
+                      className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+                    >
+                      Continue
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}

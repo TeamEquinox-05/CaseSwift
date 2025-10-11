@@ -4,7 +4,7 @@ import NewCaseForm from './NewCaseForm'
 import ExistingCaseUpload from './ExistingCaseUpload'
 import CaseAnalysisReport from './CaseAnalysisReport'
 
-const Dashboard = () => {
+const Dashboard = ({ resumeConversation, onClearResume }) => {
   const [selectedOption, setSelectedOption] = useState(null)
   const [caseAnalysis, setCaseAnalysis] = useState(null)
   const [caseId, setCaseId] = useState(null)
@@ -51,11 +51,16 @@ const Dashboard = () => {
   }
 
   if (selectedOption === 'new-case') {
-    return <NewCaseForm onBack={resetToHome} />
+    return <NewCaseForm onBack={resetToHome} resumeConversation={resumeConversation} onClearResume={onClearResume} />
   }
 
   if (selectedOption === 'existing-case') {
     return <ExistingCaseUpload onBack={resetToHome} />
+  }
+
+  // Auto-navigate to new case form if resuming conversation
+  if (resumeConversation && !selectedOption) {
+    return <NewCaseForm onBack={resetToHome} resumeConversation={resumeConversation} onClearResume={onClearResume} />
   }
 
   if (isLoading) {

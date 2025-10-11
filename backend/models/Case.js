@@ -97,7 +97,7 @@ const CaseSchema = new mongoose.Schema({
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true
+    required: false  // Changed to false - not all cases have user auth yet
   },
   assignedTo: [{
     type: mongoose.Schema.Types.ObjectId,

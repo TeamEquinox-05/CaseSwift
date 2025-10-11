@@ -7,6 +7,7 @@ import Cases from './components/Cases'
 import LegalReferences from './components/LegalReferences'
 import VictimForm from './components/VictimForm'
 import DocumentUpload from './components/DocumentUpload'
+import ConversationSidebar from './components/ConversationSidebar'
 
 // Debug component to help diagnose login issues
 function DebugInfo() {
@@ -36,6 +37,7 @@ function App() {
 function AppContent() {
   const [activeView, setActiveView] = useState('dashboard')
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [resumeConversationData, setResumeConversationData] = useState(null)
   const { isAuthenticated, loading, user } = useAuth()
   
   useEffect(() => {
@@ -56,12 +58,19 @@ function AppContent() {
     }
   }, []);
 
+  // Handle resume conversation from sidebar
+  const handleResumeConversation = (conversationData) => {
+    console.log('📞 Resuming conversation:', conversationData);
+    setResumeConversationData(conversationData);
+    setActiveView('dashboard'); // Navigate to dashboard which will show NewCaseForm with resume
+  };
+
   const renderContent = () => {
     switch (activeView) {
       case 'dashboard':
         return (
           <ProtectedRoute requiredRoles={['admin', 'officer', 'investigator']}>
-            <Dashboard />
+            <Dashboard resumeConversation={resumeConversationData} onClearResume={() => setResumeConversationData(null)} />
           </ProtectedRoute>
         )
       case 'cases':
@@ -98,7 +107,7 @@ function AppContent() {
       default:
         return (
           <ProtectedRoute requiredRoles={['admin', 'officer', 'investigator']}>
-            <Dashboard />
+            <Dashboard resumeConversation={resumeConversationData} onClearResume={() => setResumeConversationData(null)} />
           </ProtectedRoute>
         )
     }
@@ -106,6 +115,11 @@ function AppContent() {
 
   return (
     <div className="flex h-screen bg-gray-50">
+      {/* Conversation Resume Sidebar - Show for authenticated users */}
+      {isAuthenticated() && activeView !== 'victim-form' && (
+        <ConversationSidebar onResumeConversation={handleResumeConversation} />
+      )}
+
       {/* Hide sidebar for victim form OR if user is not authenticated */}
       {activeView !== 'victim-form' && isAuthenticated() && (
         <>
