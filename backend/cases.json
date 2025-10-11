@@ -38,13 +38,13 @@
     ],
     "investigationSteps": {
       "Medical examination within 72 hours": {
-        "completed": false
+        "completed": true
       },
       "Detailed victim statement recording": {
-        "completed": false
+        "completed": true
       },
       "Witness interviews and statements": {
-        "completed": false
+        "completed": true
       },
       "Scene reconstruction and evidence collection": {
         "completed": false

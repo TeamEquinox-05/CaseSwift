@@ -246,6 +246,12 @@ const ConversationalQuestioning = ({ caseId, sessionId, caseData, onComplete, on
           isAnalysis: true
         };
         setMessages(prev => [...prev, clarificationMessage]);
+        
+        // ⚠️ IMPORTANT: If clarification is needed, DON'T get next question yet
+        // Wait for officer to provide clarification first
+        setIsProcessing(false);
+        setProcessingStatus('');
+        return; // Exit early - don't call getNextQuestion()
       } else if (response.data.quality_assessment) {
         const analysisMessage = {
           role: 'ai',
@@ -267,8 +273,8 @@ const ConversationalQuestioning = ({ caseId, sessionId, caseData, onComplete, on
         setMessages(prev => [...prev, alertMessage]);
       }
 
-      // ⚡ Step 2: Get next question
-      setProcessingStatus('💭 Generating next question...');      // Get next question
+      // ⚡ Step 2: Get next question (only if no clarification needed)
+      setProcessingStatus('💭 Generating next question...');
       await getNextQuestion({
         caseData: { ...caseData, ...extractedData }
       });

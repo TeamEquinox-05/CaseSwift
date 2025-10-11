@@ -14,6 +14,10 @@ const connectDB = require('./config/database');
 // Import routes
 const authRoutes = require('./routes/auth');
 const conversationRoutes = require('./routes/conversation');
+const casesRoutes = require('./routes/cases');
+const witnessesRoutes = require('./routes/witnesses');
+const evidenceRoutes = require('./routes/evidence');
+const documentsRoutes = require('./routes/documents');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -54,6 +58,12 @@ app.use('/api/auth', authRoutes);
 
 // Conversation routes (MongoDB)
 app.use('/api/conversation', conversationRoutes);
+
+// Case management routes (MongoDB)
+app.use('/api/cases-db', casesRoutes);
+app.use('/api/witnesses', witnessesRoutes);
+app.use('/api/evidence', evidenceRoutes);
+app.use('/api/documents', documentsRoutes);
 
 // File paths
 const responsesFilePath = path.join(__dirname, '../frontend/responses.json');

@@ -467,7 +467,7 @@ async def lifespan(app: FastAPI):
         "location": "location where incident happened or null",
         "evidence_items": ["list of evidence items mentioned, empty array if none"],
         "witnesses": ["list of witness names mentioned, empty array if none"],
-        "medical_exam_status": "medical exam status or null",
+        "medical_exam_status": "Completed|Pending|Not Done|Scheduled|null (extract from answer: 'yes'→Completed, 'no'→Not Done, 'pending'→Pending, 'scheduled'→Scheduled)",
         "accused_status": "arrested/absconding/unknown or null",
         "procedures_completed": ["list of procedures completed, empty array if none"],
         "procedures_pending": ["list of procedures pending, empty array if none"]
@@ -538,6 +538,11 @@ async def lifespan(app: FastAPI):
     3. **IF incident_description contains 20+ words** → It's ALREADY ANSWERED! DON'T ask about it again!
     4. **IF incident_description is detailed** → Move to NEXT priority (evidence, witnesses, medical exam)
     5. **NEVER ask "Can you describe the incident?" if we already have incident_description**
+    6. **CHECK medical_exam_status carefully:**
+       - If it says "Not Done" → Medical exam NOT done, move to NEXT topic (don't ask again!)
+       - If it says "Pending" → Exam scheduled but not done, move to NEXT topic
+       - If it says "Completed" → Can ask WHERE and WHEN it was done
+       - If it's null/empty → Can ask if exam was done
     
     **Example of GOOD vs BAD decisions:**
     
@@ -545,9 +550,17 @@ async def lifespan(app: FastAPI):
     Extracted Data: {{ "incident_description": "The accused approached and touched victim..." }}
     Your Question: "Can you describe what exactly happened?" ← WRONG! We already have this!
     
+    ❌ BAD (Repetitive - Medical Exam):
+    Extracted Data: {{ "medical_exam_status": "Not Done" }}
+    Your Question: "Has the victim undergone medical examination?" ← WRONG! Already answered "No"!
+    
     ✅ GOOD (Non-repetitive):
     Extracted Data: {{ "incident_description": "The accused approached and touched victim..." }}
     Your Question: "What physical evidence has been collected from the scene?" ← CORRECT! Moving to next topic!
+    
+    ✅ GOOD (Non-repetitive - Medical Exam):
+    Extracted Data: {{ "medical_exam_status": "Not Done" }}
+    Your Question: "What physical evidence has been collected?" ← CORRECT! Moved to next topic instead of repeating!
     
     ### INSTRUCTIONS ###
     Based on everything above, decide the SINGLE MOST IMPORTANT next question to ask.
@@ -577,7 +590,9 @@ async def lifespan(app: FastAPI):
     **If we have victim/accused names but missing:**
     - incident_description is null/empty → Ask: "You mentioned [accused_name] approached the victim. Can you describe exactly what happened next? What actions did the accused take?"
     - evidence_items is empty → Ask: "What physical evidence has been collected from the scene? (clothing, weapons, CCTV, photos, etc.)"
-    - medical_exam_status is null → Ask: "Has the victim undergone medical examination? If yes, when and where?"
+    - medical_exam_status is null/empty/NOT SET → Ask: "Has the victim undergone medical examination? If yes, when and where?"
+    - **medical_exam_status is "Not Done" or "Pending" → SKIP asking again! Move to next topic**
+    - **medical_exam_status is "Completed" → Ask: "Where and when was the medical examination conducted?"**
     - witnesses is empty → Ask: "Were there any witnesses who saw the incident? If yes, who are they?"
     - accused_status is null → Ask: "What is the current status of the accused - arrested, absconding, or still being identified?"
     
